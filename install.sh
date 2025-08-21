@@ -11,7 +11,7 @@ NC='\033[0m'
 
 INSTALL_DIR="/opt/update-noti"
 GITHUB_REPO="raf181/Package-Updates-Noty"
-BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti-linux-x86_64"
+BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti"
 SLACK_WEBHOOK="https://hooks.slack.com/services/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"
 
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
