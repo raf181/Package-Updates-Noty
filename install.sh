@@ -12,7 +12,7 @@ NC='\033[0m'
 INSTALL_DIR="/opt/update-noti"
 GITHUB_REPO="raf181/Package-Updates-Noty"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti"
-SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
+SLACK_WEBHOOK="https://hooks.slack.com/services/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"
 
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
