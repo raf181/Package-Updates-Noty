@@ -7,9 +7,10 @@ import urllib.request
 import urllib.parse
 import socket
 import datetime
+import argparse
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
-SLACK_WEBHOOK = "https://hooks.slack.com/services/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"
+SLACK_WEBHOOK = ""
 
 # Get system information
 def get_system_info():
@@ -137,11 +138,50 @@ def send_slack_message(text):
             headers={'Content-type': 'application/json'}
         )
         with urllib.request.urlopen(req) as response:
-            pass
+            return response.read().decode() == "ok"
     except Exception as e:
         print(f"Failed to send Slack message: {e}")
+        return False
+
+def send_install_notification():
+    """Send installation completion notification to Slack"""
+    sys_info = get_system_info()
+    
+    install_message = f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    install_message += f"🎉 *UPDATE-NOTI INSTALLED!* 🎉\n"
+    install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    install_message += f"📅 **Time:** `{sys_info['time']}`\n"
+    install_message += f"🖥️ **Host:** `{sys_info['hostname']}` (`{sys_info['ip']}`)\n"
+    install_message += f"💻 **OS:** `{sys_info['os']}`\n"
+    install_message += f"⏰ **Uptime:** `{sys_info['uptime']}`\n"
+    install_message += f"📍 **Location:** `/opt/update-noti`\n"
+    install_message += f"📦 **Method:** Binary from GitHub releases\n"
+    install_message += f"✅ **Status:** Installation completed successfully! 🚀\n"
+    install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+    install_message += f"⏰ **Schedule:** Daily at 00:00 + boot backup\n"
+    install_message += f"🔄 **Auto-update:** Enabled\n"
+    install_message += f"📝 **Config:** `/opt/update-noti/config.json`\n"
+    install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    
+    if send_slack_message(install_message):
+        print("✅ Installation notification sent to Slack")
+        return True
+    else:
+        print("⚠️ Failed to send installation notification to Slack")
+        return False
 
 def main():
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(description='Package Updates Notification System')
+    parser.add_argument('--install-complete', action='store_true',
+                       help='Send installation completion notification and exit')
+    args = parser.parse_args()
+    
+    # Handle installation complete notification
+    if args.install_complete:
+        send_install_notification()
+        return
+    
     pkg_mgr = detect_package_manager()
     if not pkg_mgr:
         print("No supported package manager found.")
