@@ -9,7 +9,7 @@ import socket
 import datetime
 
 CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
-SLACK_WEBHOOK = "https://hooks.slack.com/services/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"
+SLACK_WEBHOOK = "https://hooks.slack.com/services/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"
 
 # Get system information
 def get_system_info():
