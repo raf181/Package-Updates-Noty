@@ -1,7 +1,6 @@
 #!/bin/bash
-# Update Notification System - One-Line Installer
-# Usage: curl -fsSL https://raw.githubusercontent.com/YOUR_USERNAME/update-noti/main/install.sh | bash
-# Or: wget -qO- https://raw.githubusercontent.com/YOUR_USERNAME/update-noti/main/install.sh | bash
+# Update Notification System - GitHub Binary Only Installer
+# Usage: curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash
 
 set -e
 RED='\033[0;31m'
@@ -11,56 +10,76 @@ BLUE='\033[0;34m'
 NC='\033[0m'
 
 INSTALL_DIR="/opt/update-noti"
-BINARY_URL="https://github.com/raf181/Package-Updates-Noty/releases/latest/download/update-noti-linux-x86_64"
-SCRIPT_URL="https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/update_noti.py"
+GITHUB_REPO="raf181/Package-Updates-Noty"
+BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti-linux-x86_64"
+SLACK_WEBHOOK="https://hooks.slack.com/services/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"
 
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1"; exit 1; }
 
+# Get system information for Slack notification
+get_system_info() {
+    local hostname=$(hostname)
+    local ip="Unknown"
+    
+    # Get IP address
+    if command -v curl >/dev/null 2>&1; then
+        ip=$(curl -s ifconfig.me 2>/dev/null || echo "Unknown")
+    fi
+    
+    # Get current time
+    local current_time=$(date "+%Y-%m-%d %H:%M:%S")
+    
+    # Get OS info
+    local os_info=$(uname -s)
+    if [ -f /etc/os-release ]; then
+        os_info=$(grep PRETTY_NAME /etc/os-release | cut -d '"' -f 2)
+    fi
+    
+    echo "$hostname|$ip|$current_time|$os_info"
+}
+
+# Send Slack notification
+send_slack_notification() {
+    local message="$1"
+    local payload="{\"text\":\"$message\"}"
+    
+    if command -v curl >/dev/null 2>&1; then
+        curl -X POST -H 'Content-type: application/json' \
+             --data "$payload" \
+             "$SLACK_WEBHOOK" >/dev/null 2>&1 || true
+    fi
+}
+
 # Check root
-[[ $EUID -ne 0 ]] && error "Run as root: curl -fsSL URL | sudo bash"
+[[ $EUID -ne 0 ]] && error "Run as root: curl -fsSL https://raw.githubusercontent.com/${GITHUB_REPO}/main/install.sh | sudo bash"
+
+# Get system info for notifications
+SYSTEM_INFO=$(get_system_info)
+IFS='|' read -r HOSTNAME IP_ADDR INSTALL_TIME OS_INFO <<< "$SYSTEM_INFO"
 
 # Clean install
-log "Installing update-noti..."
+log "Installing update-noti binary from GitHub releases..."
 rm -rf "$INSTALL_DIR" && mkdir -p "$INSTALL_DIR" && cd "$INSTALL_DIR"
 
-# Download binary or fallback to Python script
+# Only try to download binary from GitHub releases
 if command -v curl >/dev/null 2>&1; then
-    if curl -fsSL -o update-noti "$BINARY_URL" 2>/dev/null; then
+    if curl -fsSL -o update-noti "$BINARY_URL" 2>/dev/null && [ -s update-noti ]; then
         chmod +x update-noti
-        log "Binary installed"
+        log "Binary downloaded and installed successfully"
     else
-        warn "Binary not available, trying Python script"
-        if curl -fsSL -o update_noti.py "$SCRIPT_URL" 2>/dev/null; then
-            cat > update-noti << 'EOF'
-#!/bin/bash
-cd "$(dirname "$0")" && python3 update_noti.py
-EOF
-            chmod +x update-noti
-            log "Python script installed"
-        else
-            warn "GitHub sources not available, using local fallback"
-            # Local fallback for development/testing
-            if [ -f "/home/anoam/update-noti/update_noti.py" ]; then
-                cp "/home/anoam/update-noti/update_noti.py" .
-                cat > update-noti << 'EOF'
-#!/bin/bash
-cd "$(dirname "$0")" && python3 update_noti.py
-EOF
-                chmod +x update-noti
-                log "Local Python script installed"
-            elif [ -f "/home/anoam/update-noti/dist/update-noti" ]; then
-                cp "/home/anoam/update-noti/dist/update-noti" .
-                chmod +x update-noti
-                log "Local binary installed"
-            else
-                error "No installation source available"
-            fi
-        fi
+        error "Failed to download binary from GitHub releases. Binary may not be available yet."
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if wget -qO update-noti "$BINARY_URL" 2>/dev/null && [ -s update-noti ]; then
+        chmod +x update-noti
+        log "Binary downloaded and installed successfully"
+    else
+        error "Failed to download binary from GitHub releases. Binary may not be available yet."
     fi
 else
-    error "curl required. Install curl first."
+    error "curl or wget required for installation"
 fi
 
 # Create config
@@ -70,14 +89,18 @@ cat > config.json << 'EOF'
 }
 EOF
 
-# Self-updater
-cat > update.sh << 'EOF'
+# Self-updater - only use binary from GitHub releases
+cat > update.sh << EOF
 #!/bin/bash
 cd /opt/update-noti
-if command -v curl >/dev/null; then
-    curl -fsSL -o update-noti.new https://github.com/raf181/Package-Updates-Noty/releases/latest/download/update-noti-linux-x86_64 2>/dev/null && {
+if command -v curl >/dev/null 2>&1; then
+    if curl -fsSL -o update-noti.new "$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
         chmod +x update-noti.new && mv update-noti.new update-noti
-    }
+    fi
+elif command -v wget >/dev/null 2>&1; then
+    if wget -qO update-noti.new "$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
+        chmod +x update-noti.new && mv update-noti.new update-noti
+    fi
 fi
 exec ./update-noti
 EOF
@@ -118,14 +141,40 @@ systemctl enable --now update-noti.timer
 
 # Test
 log "Testing installation..."
-timeout 30 ./update.sh >/dev/null 2>&1 || warn "Test timeout (normal if no updates)"
+if timeout 30 ./update-noti >/dev/null 2>&1; then
+    TEST_STATUS="✅ Test passed"
+else
+    TEST_STATUS="⚠️ Test timeout (normal if no updates)"
+    warn "Test timeout (normal if no updates)"
+fi
+
+# Send installation success notification to Slack
+SLACK_MESSAGE="━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎉 *UPDATE-NOTI INSTALLED!* 🎉
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📅 **Time:** \`$INSTALL_TIME\`
+🖥️ **Host:** \`$HOSTNAME\` (\`$IP_ADDR\`)
+💻 **OS:** \`$OS_INFO\`
+📍 **Location:** \`$INSTALL_DIR\`
+📦 **Method:** Binary from GitHub releases
+$TEST_STATUS
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⏰ **Schedule:** Daily at 00:00 + boot backup
+🔄 **Auto-update:** Enabled
+📝 **Config:** \`$INSTALL_DIR/config.json\`
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+log "Sending installation notification to Slack..."
+send_slack_notification "$SLACK_MESSAGE"
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}🎉 UPDATE-NOTI INSTALLED! 🎉${NC}"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "📍 Location: $INSTALL_DIR"
+echo -e "🖥️ Host: $HOSTNAME ($IP_ADDR)"
 echo -e "⏰ Schedule: Daily at 00:00 + boot backup"
 echo -e "🔄 Auto-update: Enabled"
 echo -e "🧪 Test: cd $INSTALL_DIR && ./update.sh"
 echo -e "📝 Config: $INSTALL_DIR/config.json"
+echo -e "📨 Slack notification sent"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
