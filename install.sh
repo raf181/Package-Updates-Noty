@@ -12,7 +12,7 @@ NC='\033[0m'
 INSTALL_DIR="/opt/update-noti"
 GITHUB_REPO="raf181/Package-Updates-Noty"
 BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti"
-SLACK_WEBHOOK="https://hooks.slack.com/services/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"
+SLACK_WEBHOOK="https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
 
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -46,9 +46,18 @@ send_slack_notification() {
     local payload="{\"text\":\"$message\"}"
     
     if command -v curl >/dev/null 2>&1; then
-        curl -X POST -H 'Content-type: application/json' \
-             --data "$payload" \
-             "$SLACK_WEBHOOK" >/dev/null 2>&1 || true
+        local response=$(curl -X POST -H 'Content-type: application/json' \
+                            --data "$payload" \
+                            "$SLACK_WEBHOOK" 2>/dev/null)
+        if [ "$response" = "ok" ]; then
+            return 0
+        else
+            warn "Slack notification failed: $response"
+            return 1
+        fi
+    else
+        warn "curl not available for Slack notification"
+        return 1
     fi
 }
 
@@ -165,7 +174,11 @@ $TEST_STATUS
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 log "Sending installation notification to Slack..."
-send_slack_notification "$SLACK_MESSAGE"
+if send_slack_notification "$SLACK_MESSAGE"; then
+    SLACK_STATUS="📨 Slack notification sent"
+else
+    SLACK_STATUS="⚠️ Slack notification failed (check webhook)"
+fi
 
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
 echo -e "${GREEN}🎉 UPDATE-NOTI INSTALLED! 🎉${NC}"
@@ -176,5 +189,5 @@ echo -e "⏰ Schedule: Daily at 00:00 + boot backup"
 echo -e "🔄 Auto-update: Enabled"
 echo -e "🧪 Test: cd $INSTALL_DIR && ./update.sh"
 echo -e "📝 Config: $INSTALL_DIR/config.json"
-echo -e "📨 Slack notification sent"
+echo -e "$SLACK_STATUS"
 echo -e "${BLUE}━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━${NC}"
