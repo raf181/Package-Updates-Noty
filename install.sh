@@ -11,7 +11,7 @@ NC='\033[0m'
 
 INSTALL_DIR="/opt/update-noti"
 GITHUB_REPO="raf181/Package-Updates-Noty"
-BINARY_URL=""
+BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti"
 
 log() { echo -e "${GREEN}[INFO]${NC} $1"; }
 warn() { echo -e "${YELLOW}[WARN]${NC} $1"; }
@@ -54,12 +54,13 @@ EOF
 cat > update.sh << EOF
 #!/bin/bash
 cd /opt/update-noti
+BINARY_URL="https://github.com/${GITHUB_REPO}/releases/latest/download/update-noti"
 if command -v curl >/dev/null 2>&1; then
-    if curl -fsSL -o update-noti.new "$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
+    if curl -fsSL -o update-noti.new "\$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
         chmod +x update-noti.new && mv update-noti.new update-noti
     fi
 elif command -v wget >/dev/null 2>&1; then
-    if wget -qO update-noti.new "$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
+    if wget -qO update-noti.new "\$BINARY_URL" 2>/dev/null && [ -s update-noti.new ]; then
         chmod +x update-noti.new && mv update-noti.new update-noti
     fi
 fi
