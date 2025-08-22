@@ -3,11 +3,78 @@ set -e
 
 # Package Updates Notifier - Enhanced Installer
 # Installs binary from GitHub releases with Python fallback
+# Supports automatic Slack webhook configuration
 
 REPO="raf181/Package-Updates-Noty"
 INSTALL_DIR="/opt/update-noti"
 SERVICE_NAME="update-noti"
 TEMP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
+
+# Configuration variables
+SLACK_WEBHOOK_URL=""
+AUTO_UPDATE_PACKAGES=""
+SKIP_CONFIG_PROMPT=false
+
+# Parse command line arguments
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        --webhook)
+            SLACK_WEBHOOK_URL="$2"
+            shift 2
+            ;;
+        --webhook=*)
+            SLACK_WEBHOOK_URL="${1#*=}"
+            shift
+            ;;
+        --packages)
+            AUTO_UPDATE_PACKAGES="$2"
+            shift 2
+            ;;
+        --packages=*)
+            AUTO_UPDATE_PACKAGES="${1#*=}"
+            shift
+            ;;
+        --skip-config)
+            SKIP_CONFIG_PROMPT=true
+            shift
+            ;;
+        --help|-h)
+            echo "Package Updates Notifier Installer"
+            echo ""
+            echo "Usage: $0 [OPTIONS]"
+            echo ""
+            echo "Options:"
+            echo "  --webhook=URL        Set Slack webhook URL automatically"
+            echo "  --packages=LIST      Comma-separated list of packages to auto-update"
+            echo "  --skip-config        Skip configuration prompts (use defaults)"
+            echo "  --help, -h           Show this help message"
+            echo ""
+            echo "Environment Variables:"
+            echo "  SLACK_WEBHOOK_URL    Slack webhook URL"
+            echo "  AUTO_UPDATE_PACKAGES Comma-separated package list"
+            echo ""
+            echo "Examples:"
+            echo "  $0 --webhook=https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+            echo "  $0 --webhook=YOUR_URL --packages=nginx,docker.io,tailscale"
+            echo "  SLACK_WEBHOOK_URL=YOUR_URL $0 --skip-config"
+            exit 0
+            ;;
+        *)
+            echo "Unknown option: $1"
+            echo "Use --help for usage information"
+            exit 1
+            ;;
+    esac
+done
+
+# Use environment variables if not set via arguments
+if [ -z "$SLACK_WEBHOOK_URL" ] && [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+    SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL}"
+fi
+
+if [ -z "$AUTO_UPDATE_PACKAGES" ] && [ -n "${AUTO_UPDATE_PACKAGES:-}" ]; then
+    AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES}"
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -194,18 +261,94 @@ EOF
 create_config() {
     log "Creating configuration file..."
     
-    cat > "$INSTALL_DIR/config.json" << 'EOF'
+    # Determine auto-update packages
+    local packages="tailscale", "netdata"
+    if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
+        # Convert comma-separated list to JSON array format
+        packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')
+    fi
+    
+    # Determine webhook URL
+    local webhook_url="https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        webhook_url="$SLACK_WEBHOOK_URL"
+        log "Using provided Slack webhook URL"
+    fi
+    
+    # Create config file
+    cat > "$INSTALL_DIR/config.json" << EOF
 {
   "auto_update": [
-    "tailscale",
-    "netdata"
+    $packages
   ],
-  "slack_webhook": "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
+  "slack_webhook": "$webhook_url"
 }
 EOF
     
     success "Configuration file created: $INSTALL_DIR/config.json"
-    log "Please edit $INSTALL_DIR/config.json to configure your Slack webhook and auto-update packages"
+    
+    # Show configuration status
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        success "✅ Slack webhook configured automatically"
+    else
+        warning "⚠️  Please edit $INSTALL_DIR/config.json to configure your Slack webhook"
+    fi
+    
+    # Interactive configuration if not skipped
+    if [ "$SKIP_CONFIG_PROMPT" = false ] && [ -z "$SLACK_WEBHOOK_URL" ]; then
+        echo
+        echo -e "${YELLOW}Would you like to configure your Slack webhook now? (y/n)${NC}"
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            configure_webhook_interactive
+        fi
+    fi
+}
+
+# Interactive webhook configuration
+configure_webhook_interactive() {
+    echo
+    echo -e "${BLUE}📝 Slack Webhook Configuration${NC}"
+    echo "Please enter your Slack webhook URL:"
+    echo "(Format: https://hooks.slack.com/services/YOUR/WEBHOOK/URL)"
+    echo
+    read -r webhook_input
+    
+    if [ -n "$webhook_input" ] && [[ "$webhook_input" == https://hooks.slack.com/services/* ]]; then
+        # Update config file with new webhook
+        if command -v jq >/dev/null 2>&1; then
+            # Use jq if available for better JSON handling
+            jq --arg webhook "$webhook_input" '.slack_webhook = $webhook' "$INSTALL_DIR/config.json" > "$INSTALL_DIR/config.json.tmp" && mv "$INSTALL_DIR/config.json.tmp" "$INSTALL_DIR/config.json"
+        else
+            # Fallback to sed
+            sed -i "s|\"slack_webhook\": \".*\"|\"slack_webhook\": \"$webhook_input\"|g" "$INSTALL_DIR/config.json"
+        fi
+        success "✅ Slack webhook configured successfully"
+        
+        # Test the webhook
+        echo
+        echo -e "${BLUE}Would you like to test the webhook now? (y/n)${NC}"
+        read -r test_response
+        if [[ "$test_response" =~ ^[Yy]$ ]]; then
+            test_slack_webhook "$webhook_input"
+        fi
+    else
+        warning "Invalid webhook URL format. You can configure it later in $INSTALL_DIR/config.json"
+    fi
+}
+
+# Test Slack webhook
+test_slack_webhook() {
+    local webhook_url="$1"
+    log "Testing Slack webhook..."
+    
+    local test_message='{"text":"🎉 *Package Updates Notifier* installed successfully!\n✅ Webhook test completed - your notifications are working!"}'
+    
+    if curl -X POST -H 'Content-type: application/json' --data "$test_message" "$webhook_url" --silent --show-error | grep -q "ok"; then
+        success "✅ Slack webhook test successful! Check your Slack channel."
+    else
+        warning "⚠️ Slack webhook test failed. Please check your webhook URL."
+    fi
 }
 
 # Create update wrapper script

@@ -2,7 +2,27 @@
 
 A standalone tool that checks for system package updates and sends notifications to Slack.
 
+## ⚡ Quick Start
+
+```bash
+# Basic installation
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash
+
+# With automatic Slack webhook setup
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo -E bash
+
+# Full automated setup with custom packages
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | \
+sudo bash -s -- \
+  --webhook="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+  --packages="nginx,docker.io,tailscale" \
+  --skip-config
+```
+
 ## 🚀 One-Line Install
+
+### Basic Installation
 
 Install and configure everything automatically:
 
@@ -11,9 +31,44 @@ curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/in
 ```
 
 Or with wget:
+
 ```bash
 wget -qO- https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash
 ```
+
+### 🔧 Install with Automatic Slack Configuration
+
+#### Option 1: Command-line arguments
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash -s -- --webhook="https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
+```
+
+#### Option 2: Environment variables
+
+```bash
+SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo -E bash
+```
+
+#### Option 3: Full automated setup
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | \
+sudo bash -s -- \
+  --webhook="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
+  --packages="nginx,docker.io,tailscale" \
+  --skip-config
+```
+
+### 📋 Installation Options
+
+| Option | Description | Example |
+|--------|-------------|----------|
+| `--webhook=URL` | Set Slack webhook automatically | `--webhook="https://hooks.slack.com/..."` |
+| `--packages=LIST` | Comma-separated auto-update packages | `--packages="nginx,docker,tailscale"` |
+| `--skip-config` | Skip interactive prompts | `--skip-config` |
+| `--help` | Show help information | `--help` |
 
 That's it! The system will:
 - ✅ Install the binary to `/opt/update-noti/`
@@ -31,6 +86,19 @@ After installation you'll have:
 
 ## 🔧 Configuration
 
+### Automatic Configuration (Recommended)
+Use the enhanced installer for zero-touch setup:
+
+```bash
+# Fully automated installation
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | \
+sudo bash -s -- \
+  --webhook="YOUR_SLACK_WEBHOOK_URL" \
+  --packages="nginx,docker.io,tailscale" \
+  --skip-config
+```
+
+### Manual Configuration
 Edit `/opt/update-noti/config.json` to customize auto-update packages and set your Slack webhook:
 
 ```json
