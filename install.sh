@@ -12,7 +12,7 @@ create_config() {
     log "Creating configuration file..."
     
     # Determine auto-update packages
-    local packages='"tailscale", "netdata"'
+    local packages='"tailscale"'
     if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
         # Convert comma-separated list to JSON array format
         packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')
@@ -57,9 +57,9 @@ EOF
     fi
 }MP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
 
-# Configuration variables
-SLACK_WEBHOOK_URL=""
-AUTO_UPDATE_PACKAGES=""
+# Configuration variables - use environment variables if already set
+SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES:-}"
 SKIP_CONFIG_PROMPT=false
 
 # Parse command line arguments
@@ -302,11 +302,17 @@ EOF
 create_config() {
     log "Creating configuration file..."
     
+    # Ensure environment variables are properly inherited
+    if [ -z "$SLACK_WEBHOOK_URL" ] && [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
+        SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
+    fi
+    
     # Debug: Show environment variables
     log "DEBUG: SLACK_WEBHOOK_URL='$SLACK_WEBHOOK_URL'"
+    log "DEBUG: Environment SLACK_WEBHOOK_URL='${SLACK_WEBHOOK_URL:-}'"
     
     # Determine auto-update packages
-    local packages='"tailscale", "netdata"'
+    local packages='"tailscale"'
     if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
         # Convert comma-separated list to JSON array format
         packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/'"/')
@@ -317,6 +323,8 @@ create_config() {
     if [ -n "$SLACK_WEBHOOK_URL" ]; then
         webhook_url="$SLACK_WEBHOOK_URL"
         log "Using provided Slack webhook URL"
+        # Automatically skip config prompts when webhook is provided
+        SKIP_CONFIG_PROMPT=true
     fi
     
     # Create config file
