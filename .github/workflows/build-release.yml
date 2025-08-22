@@ -11,6 +11,11 @@ on:
         required: true
         default: 'v1.0.0'
 
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
