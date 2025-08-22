@@ -9,7 +9,17 @@ import socket
 import datetime
 import argparse
 
-CONFIG_FILE = os.path.join(os.path.dirname(__file__), 'config.json')
+# Handle PyInstaller bundled executable path
+def get_script_directory():
+    """Get the directory where this script/executable is located."""
+    if getattr(sys, 'frozen', False):
+        # Running as PyInstaller bundle
+        return os.path.dirname(sys.executable)
+    else:
+        # Running as Python script
+        return os.path.dirname(os.path.abspath(__file__))
+
+CONFIG_FILE = os.path.join(get_script_directory(), 'config.json')
 SLACK_WEBHOOK = ""
 
 # Get system information
@@ -127,13 +137,46 @@ def auto_update_packages(pkg_mgr, pkgs):
             pass
     return updated
 
+def load_config():
+    """Load configuration from config.json file."""
+    try:
+        with open(CONFIG_FILE) as f:
+            config = json.load(f)
+            return config
+    except FileNotFoundError:
+        print(f"Configuration file not found: {CONFIG_FILE}")
+        # Create default config if it doesn't exist
+        default_config = {
+            "auto_update": ["tailscale", "netdata"],
+            "slack_webhook": SLACK_WEBHOOK
+        }
+        try:
+            with open(CONFIG_FILE, 'w') as f:
+                json.dump(default_config, f, indent=2)
+            print(f"Created default configuration file: {CONFIG_FILE}")
+            return default_config
+        except Exception as e:
+            print(f"Failed to create config file: {e}")
+            return default_config
+    except Exception as e:
+        print(f"Error loading config file: {e}")
+        return {"auto_update": [], "slack_webhook": SLACK_WEBHOOK}
+
 # Send message to Slack
-def send_slack_message(text):
+def send_slack_message(text, config=None):
+    if config is None:
+        config = load_config()
+    
+    webhook_url = str(config.get('slack_webhook', SLACK_WEBHOOK))
+    if not webhook_url or webhook_url == "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN":
+        print("Slack webhook not configured. Please set slack_webhook in config.json")
+        return False
+    
     payload = {"text": text}
     try:
         data = json.dumps(payload).encode('utf-8')
         req = urllib.request.Request(
-            SLACK_WEBHOOK,
+            webhook_url,
             data=data,
             headers={'Content-type': 'application/json'}
         )
@@ -163,7 +206,8 @@ def send_install_notification():
     install_message += f"📝 **Config:** `/opt/update-noti/config.json`\n"
     install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    if send_slack_message(install_message):
+    config = load_config()
+    if send_slack_message(install_message, config):
         print("✅ Installation notification sent to Slack")
         return True
     else:
@@ -189,6 +233,9 @@ def main():
 
     # Get system information
     sys_info = get_system_info()
+    
+    # Load config
+    config = load_config()
 
     upgradable = get_upgradable_packages(pkg_mgr)
     if not upgradable:
@@ -203,12 +250,9 @@ def main():
         msg += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         msg += f"✅ **STATUS:** All packages are up to date! 🎉\n"
         msg += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-        send_slack_message(msg)
+        send_slack_message(msg, config)
         return
 
-    # Load config
-    with open(CONFIG_FILE) as f:
-        config = json.load(f)
     auto_update = config.get('auto_update', [])
 
     # Find which auto-update packages are upgradable
@@ -252,7 +296,7 @@ def main():
     
     msg += f"\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
     
-    send_slack_message(msg)
+    send_slack_message(msg, config)
 
 if __name__ == "__main__":
     main()
