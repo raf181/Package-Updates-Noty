@@ -20,7 +20,8 @@ def get_script_directory():
         return os.path.dirname(os.path.abspath(__file__))
 
 CONFIG_FILE = os.path.join(get_script_directory(), 'config.json')
-SLACK_WEBHOOK = ""
+# No default webhook - must be configured in config.json
+SLACK_WEBHOOK = None
 
 # Get system information
 def get_system_info():
@@ -148,7 +149,7 @@ def load_config():
         # Create default config if it doesn't exist
         default_config = {
             "auto_update": ["tailscale", "netdata"],
-            "slack_webhook": SLACK_WEBHOOK
+            "slack_webhook": "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
         }
         try:
             with open(CONFIG_FILE, 'w') as f:
@@ -160,17 +161,19 @@ def load_config():
             return default_config
     except Exception as e:
         print(f"Error loading config file: {e}")
-        return {"auto_update": [], "slack_webhook": SLACK_WEBHOOK}
+        return {"auto_update": [], "slack_webhook": "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"}
 
 # Send message to Slack
 def send_slack_message(text, config=None):
     if config is None:
         config = load_config()
     
-    webhook_url = str(config.get('slack_webhook', SLACK_WEBHOOK))
+    webhook_url = config.get('slack_webhook')
     if not webhook_url or webhook_url == "https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN":
         print("Slack webhook not configured. Please set slack_webhook in config.json")
         return False
+    
+    webhook_url = str(webhook_url)
     
     payload = {"text": text}
     try:

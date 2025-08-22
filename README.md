@@ -31,7 +31,7 @@ After installation you'll have:
 
 ## 🔧 Configuration
 
-Edit `/opt/update-noti/config.json` to customize auto-update packages:
+Edit `/opt/update-noti/config.json` to customize auto-update packages and set your Slack webhook:
 
 ```json
 {
@@ -40,9 +40,12 @@ Edit `/opt/update-noti/config.json` to customize auto-update packages:
     "netdata",
     "nginx",
     "docker.io"
-  ]
+  ],
+  "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
 }
 ```
+
+⚠️ **Security Note**: You **must** configure your own Slack webhook URL in `config.json`. The application will not work without proper webhook configuration.
 
 ## 📦 Supported Package Managers
 
