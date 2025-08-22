@@ -7,8 +7,55 @@ set -e
 
 REPO="raf181/Package-Updates-Noty"
 INSTALL_DIR="/opt/update-noti"
-SERVICE_NAME="update-noti"
-TEMP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
+SERVICE_N# Create default configuration
+create_config() {
+    log "Creating configuration file..."
+    
+    # Determine auto-update packages
+    local packages='"tailscale", "netdata"'
+    if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
+        # Convert comma-separated list to JSON array format
+        packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')
+    fi
+    
+    # Determine webhook URL
+    local webhook_url="https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        webhook_url="$SLACK_WEBHOOK_URL"
+        log "Using provided Slack webhook URL"
+        # Automatically skip config prompts when webhook is provided
+        SKIP_CONFIG_PROMPT=true
+    fi
+    
+    # Create config file
+    cat > "$INSTALL_DIR/config.json" << EOF
+{
+  "auto_update": [
+    $packages
+  ],
+  "slack_webhook": "$webhook_url"
+}
+EOF
+    
+    success "Configuration file created: $INSTALL_DIR/config.json"
+    
+    # Show configuration status
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        success "✅ Slack webhook configured automatically"
+    else
+        warning "⚠️  Please edit $INSTALL_DIR/config.json to configure your Slack webhook"
+    fi
+    
+    # Interactive configuration if not skipped
+    if [ "$SKIP_CONFIG_PROMPT" = false ] && [ -z "$SLACK_WEBHOOK_URL" ]; then
+        echo
+        echo -e "${YELLOW}Would you like to configure your Slack webhook now? (y/n)${NC}"
+        read -r response
+        if [[ "$response" =~ ^[Yy]$ ]]; then
+            configure_webhook_interactive
+        fi
+    fi
+}MP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
 
 # Configuration variables
 SLACK_WEBHOOK_URL=""
@@ -255,11 +302,14 @@ EOF
 create_config() {
     log "Creating configuration file..."
     
+    # Debug: Show environment variables
+    log "DEBUG: SLACK_WEBHOOK_URL='$SLACK_WEBHOOK_URL'"
+    
     # Determine auto-update packages
-    local packages="tailscale", "netdata"
+    local packages='"tailscale", "netdata"'
     if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
         # Convert comma-separated list to JSON array format
-        packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')
+        packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/'"/')
     fi
     
     # Determine webhook URL
@@ -497,12 +547,21 @@ main() {
     echo -e "${BLUE}📝 Configuration file:${NC} $INSTALL_DIR/config.json"
     echo -e "${BLUE}🔧 Update script:${NC} $INSTALL_DIR/update.sh"
     echo
-    echo -e "${YELLOW}⚠️  IMPORTANT: Configure your Slack webhook in $INSTALL_DIR/config.json${NC}"
-    echo
-    echo -e "${GREEN}📋 Next steps:${NC}"
-    echo "  1. Edit $INSTALL_DIR/config.json with your Slack webhook URL"
-    echo "  2. Customize auto-update packages in the config"
-    echo "  3. Test manually: cd $INSTALL_DIR && ./update.sh"
+    
+    # Show conditional next steps based on webhook configuration
+    if [ -n "$SLACK_WEBHOOK_URL" ]; then
+        echo -e "${GREEN}✅ Slack webhook configured automatically - ready to use!${NC}"
+        echo -e "${GREEN}📋 Next steps:${NC}"
+        echo "  1. Customize auto-update packages in $INSTALL_DIR/config.json (optional)"
+        echo "  2. Test manually: cd $INSTALL_DIR && ./update.sh"
+    else
+        echo -e "${YELLOW}⚠️  IMPORTANT: Configure your Slack webhook in $INSTALL_DIR/config.json${NC}"
+        echo -e "${GREEN}📋 Next steps:${NC}"
+        echo "  1. Edit $INSTALL_DIR/config.json with your Slack webhook URL"
+        echo "  2. Customize auto-update packages in the config"
+        echo "  3. Test manually: cd $INSTALL_DIR && ./update.sh"
+    fi
+    
     echo
     echo -e "${BLUE}⏰ Scheduled to run daily at 00:00 with 5-minute boot delay${NC}"
     echo
