@@ -68,13 +68,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Use environment variables if not set via arguments
-if [ -z "$SLACK_WEBHOOK_URL" ] && [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
-    SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL}"
-fi
-
-if [ -z "$AUTO_UPDATE_PACKAGES" ] && [ -n "${AUTO_UPDATE_PACKAGES:-}" ]; then
-    AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES}"
-fi
+# Environment variables should already be inherited from parent shell
 
 # Colors for output
 RED='\033[0;31m'
