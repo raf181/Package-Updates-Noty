@@ -7,55 +7,9 @@ set -e
 
 REPO="raf181/Package-Updates-Noty"
 INSTALL_DIR="/opt/update-noti"
-SERVICE_N# Create default configuration
-create_config() {
-    log "Creating configuration file..."
+SERVICE_NAME="update-noti"
     
-    # Determine auto-update packages
-    local packages='"tailscale"'
-    if [ -n "$AUTO_UPDATE_PACKAGES" ]; then
-        # Convert comma-separated list to JSON array format
-        packages=$(echo "$AUTO_UPDATE_PACKAGES" | sed 's/,/", "/g' | sed 's/^/"/' | sed 's/$/"/')
-    fi
-    
-    # Determine webhook URL
-    local webhook_url="https://hooks.slack.com/services/YOUR_WORKSPACE/YOUR_CHANNEL/YOUR_TOKEN"
-    if [ -n "$SLACK_WEBHOOK_URL" ]; then
-        webhook_url="$SLACK_WEBHOOK_URL"
-        log "Using provided Slack webhook URL"
-        # Automatically skip config prompts when webhook is provided
-        SKIP_CONFIG_PROMPT=true
-    fi
-    
-    # Create config file
-    cat > "$INSTALL_DIR/config.json" << EOF
-{
-  "auto_update": [
-    $packages
-  ],
-  "slack_webhook": "$webhook_url"
-}
-EOF
-    
-    success "Configuration file created: $INSTALL_DIR/config.json"
-    
-    # Show configuration status
-    if [ -n "$SLACK_WEBHOOK_URL" ]; then
-        success "✅ Slack webhook configured automatically"
-    else
-        warning "⚠️  Please edit $INSTALL_DIR/config.json to configure your Slack webhook"
-    fi
-    
-    # Interactive configuration if not skipped
-    if [ "$SKIP_CONFIG_PROMPT" = false ] && [ -z "$SLACK_WEBHOOK_URL" ]; then
-        echo
-        echo -e "${YELLOW}Would you like to configure your Slack webhook now? (y/n)${NC}"
-        read -r response
-        if [[ "$response" =~ ^[Yy]$ ]]; then
-            configure_webhook_interactive
-        fi
-    fi
-}MP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
+TEMP_DIR=$(mktemp -d -t update-noti-install-XXXXXX)
 
 # Configuration variables - use environment variables if already set
 SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
@@ -306,10 +260,6 @@ create_config() {
     if [ -z "$SLACK_WEBHOOK_URL" ] && [ -n "${SLACK_WEBHOOK_URL:-}" ]; then
         SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
     fi
-    
-    # Debug: Show environment variables
-    log "DEBUG: SLACK_WEBHOOK_URL='$SLACK_WEBHOOK_URL'"
-    log "DEBUG: Environment SLACK_WEBHOOK_URL='${SLACK_WEBHOOK_URL:-}'"
     
     # Determine auto-update packages
     local packages='"tailscale"'
