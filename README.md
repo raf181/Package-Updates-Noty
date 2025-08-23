@@ -72,10 +72,10 @@ sudo bash -s -- \
 
 That's it! The system will:
 - ✅ Install the binary to `/opt/update-noti/`
-- ✅ Set up daily execution at 00:00 (systemd + cron backup)
+- ✅ Set up daily execution at 01:00 (systemd + cron backup)
 - ✅ Enable auto-updates on each run
 - ✅ Create default configuration
-- ✅ Run on boot if midnight execution was missed
+- ✅ Run on boot (5 minutes after boot) if a scheduled run was missed
 
 ## 📁 Files
 
@@ -134,8 +134,8 @@ The tool sends beautifully formatted notifications including:
 ## ⏰ Scheduling
 
 Automatically configured:
-- **Systemd Timer**: Daily at 00:00 + 5min after boot if missed
-- **Cron Fallback**: Daily at 00:00
+- **Systemd Timer**: Daily at 01:00 + 5min after boot if missed
+- **Cron Fallback**: Daily at 01:00
 
 ## 🔄 Self-Updating
 

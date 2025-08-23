@@ -433,7 +433,7 @@ Description=Run Package Updates Notifier daily
 Requires=${SERVICE_NAME}.service
 
 [Timer]
-OnCalendar=daily
+OnCalendar=01:00
 OnBootSec=5min
 Persistent=true
 
@@ -454,7 +454,7 @@ setup_cron_fallback() {
     log "Setting up cron fallback..."
     
     # Add cron job (fallback if systemd fails)
-    local cron_line="0 0 * * * root cd $INSTALL_DIR && ./update.sh >/dev/null 2>&1"
+    local cron_line="0 1 * * * root cd $INSTALL_DIR && ./update.sh >/dev/null 2>&1"
     
     if ! grep -Fxq "$cron_line" /etc/crontab; then
         echo "$cron_line" >> /etc/crontab
@@ -527,7 +527,7 @@ main() {
     fi
     
     echo
-    echo -e "${BLUE}Scheduled to run daily at 00:00 with 5-minute boot delay${NC}"
+    echo -e "${BLUE}Scheduled to run daily at 01:00 with 5-minute boot delay${NC}"
     echo
 }
 

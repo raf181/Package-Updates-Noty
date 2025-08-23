@@ -204,7 +204,7 @@ def send_install_notification():
     install_message += f"📦 **Method:** Binary from GitHub releases\n"
     install_message += f"✅ **Status:** Installation completed successfully! 🚀\n"
     install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-    install_message += f"⏰ **Schedule:** Daily at 00:00 + boot backup\n"
+    install_message += f"⏰ **Schedule:** Daily at 01:00 + boot backup\n"
     install_message += f"🔄 **Auto-update:** Enabled\n"
     install_message += f"📝 **Config:** `/opt/update-noti/config.json`\n"
     install_message += f"━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
