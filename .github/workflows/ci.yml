@@ -2,9 +2,8 @@ name: CI
 
 on:
   push:
-    branches: [ main ]
   pull_request:
-    branches: [ main ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -17,12 +16,23 @@ jobs:
         uses: actions/setup-go@v5
         with:
           go-version: '1.22'
+          cache: true
+      - name: Download modules
+        run: go mod download
+      - name: Build native (runner arch)
+        run: go build -o update-noti ./cmd/update-noti
+      - name: Smoke test
+        run: |
+          ./update-noti --version
+          ./update-noti --install-complete --config=./config.example.json || true
       - name: Build linux/amd64
         run: |
           GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.sha }}" -o update-noti_linux_amd64 ./cmd/update-noti
       - name: Build linux/arm64
         run: |
           GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.sha }}" -o update-noti_linux_arm64 ./cmd/update-noti
+      - name: Generate checksums
+        run: sha256sum update-noti_linux_* > checksums.txt
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -30,3 +40,4 @@ jobs:
           path: |
             update-noti_linux_amd64
             update-noti_linux_arm64
+            checksums.txt
