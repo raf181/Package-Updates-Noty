@@ -19,6 +19,7 @@ NO_SYSTEMD=0
 SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
 AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES:-}"
 SKIP_CONFIG_PROMPT=false
+TAG="${TAG:-}"
 
 # Preserve original args for fallback parsing after shifting
 ORIGINAL_ARGS=("$@")
@@ -33,6 +34,8 @@ while [[ $# -gt 0 ]]; do
   --prefix) PREFIX="$2"; shift 2 ;;
   --prefix=*) PREFIX="${1#*=}"; shift ;;
   --no-systemd) NO_SYSTEMD=1; shift ;;
+  --tag) TAG="$2"; shift 2 ;;
+  --tag=*) TAG="${1#*=}"; shift ;;
     --help|-h)
       cat <<USAGE
 Package Updates Notifier Installer (Go)
@@ -52,6 +55,7 @@ Environment Variables:
 Advanced:
   --prefix=DIR         Install under DIR (non-root allowed; skips systemd/cron)
   --no-systemd         Skip installing systemd units (useful with --prefix)
+  --tag=TAG            Release tag to download (e.g., v2025.09.21 or nightly); default is the latest release
 USAGE
       exit 0
       ;;
@@ -117,7 +121,12 @@ cleanup() { rm -rf "$TMP_DIR"; }
 trap cleanup EXIT INT TERM
 
 download_binary() {
-  local url="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+  local url
+  if [[ -n "$TAG" ]]; then
+    url="https://github.com/${REPO}/releases/download/${TAG}/${ASSET}"
+  else
+    url="https://github.com/${REPO}/releases/latest/download/${ASSET}"
+  fi
   local out="$TMP_DIR/${BIN_NAME}"
   log "Downloading binary: $url"
   if ! curl -fsSL -o "$out" -L "$url"; then
@@ -125,7 +134,12 @@ download_binary() {
     return 1
   fi
   # Try to verify checksum if checksums.txt is available
-  local csum_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
+  local csum_url
+  if [[ -n "$TAG" ]]; then
+    csum_url="https://github.com/${REPO}/releases/download/${TAG}/checksums.txt"
+  else
+    csum_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
+  fi
   local csum_file="$TMP_DIR/checksums.txt"
   if curl -fsSL -o "$csum_file" -L "$csum_url"; then
     if command -v sha256sum >/dev/null 2>&1; then
@@ -222,10 +236,18 @@ last=0
 if [[ -f "$STAMP" ]]; then last=$(cat "$STAMP" 2>/dev/null || echo 0); fi
 if (( now - last > 86400 )); then
   TMP=$(mktemp)
-  if curl -fsSL -o "$TMP" -L "https://github.com/raf181/Package-Updates-Noty/releases/latest/download/${ASSET}"; then
+  URL="https://github.com/raf181/Package-Updates-Noty/releases/latest/download/${ASSET}"
+  if [[ -n "${UPDATE_NOTI_TAG:-}" ]]; then
+    URL="https://github.com/raf181/Package-Updates-Noty/releases/download/${UPDATE_NOTI_TAG}/${ASSET}"
+  fi
+  if curl -fsSL -o "$TMP" -L "$URL"; then
     # optional checksum verification
     CSUM_TMP=$(mktemp)
-    if curl -fsSL -o "$CSUM_TMP" -L "https://github.com/raf181/Package-Updates-Noty/releases/latest/download/checksums.txt" 2>/dev/null; then
+    CSUM_URL="https://github.com/raf181/Package-Updates-Noty/releases/latest/download/checksums.txt"
+    if [[ -n "${UPDATE_NOTI_TAG:-}" ]]; then
+      CSUM_URL="https://github.com/raf181/Package-Updates-Noty/releases/download/${UPDATE_NOTI_TAG}/checksums.txt"
+    fi
+    if curl -fsSL -o "$CSUM_TMP" -L "$CSUM_URL" 2>/dev/null; then
       if command -v sha256sum >/dev/null 2>&1; then
         exp=$(grep "${ASSET}$" "$CSUM_TMP" | awk '{print $1}')
         if [[ -n "$exp" ]]; then
