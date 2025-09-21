@@ -1,1 +1,0 @@
-# Deprecated: Go-only project. No Python requirements needed.
