@@ -45,10 +45,17 @@ USAGE
   esac
 done
 
-# If a webhook was provided via flag/env, skip interactive prompt
-if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
-  SKIP_CONFIG_PROMPT=true
+# Fallback: if --webhook=VALUE appears in args and wasn't captured (edge shells), extract it
+if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
+  for arg in "$@"; do
+    case "$arg" in
+      --webhook=*) SLACK_WEBHOOK_URL="${arg#*=}" ;;
+    esac
+  done
 fi
+
+# If a webhook was provided via flag/env, skip interactive prompt
+[[ -n "$SLACK_WEBHOOK_URL" ]] && SKIP_CONFIG_PROMPT=true
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"; }
@@ -114,6 +121,11 @@ create_config() {
 JSON
   chmod 0600 "$INSTALL_DIR/config.json"
   success "Configuration: $INSTALL_DIR/config.json"
+
+  # If webhook was provided, ensure it is written (override placeholder)
+  if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+    sed -i "s|\"slack_webhook\": \".*\"|\"slack_webhook\": \"$SLACK_WEBHOOK_URL\"|" "$INSTALL_DIR/config.json"
+  fi
 
   # Only prompt if not skipping and the config still has the placeholder URL
   if [[ "$SKIP_CONFIG_PROMPT" = false ]]; then
