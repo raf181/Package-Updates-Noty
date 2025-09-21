@@ -16,6 +16,9 @@ SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
 AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES:-}"
 SKIP_CONFIG_PROMPT=false
 
+# Preserve original args for fallback parsing after shifting
+ORIGINAL_ARGS=("$@")
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --webhook) SLACK_WEBHOOK_URL="$2"; shift 2 ;;
@@ -45,12 +48,21 @@ USAGE
   esac
 done
 
-# Fallback: if --webhook=VALUE appears in args and wasn't captured (edge shells), extract it
-if [[ -z "$SLACK_WEBHOOK_URL" ]]; then
-  for arg in "$@"; do
+# Fallback: if --webhook appears in original args and wasn't captured, extract it
+if [[ -z "$SLACK_WEBHOOK_URL" && ${#ORIGINAL_ARGS[@]} -gt 0 ]]; then
+  for ((i=0; i<${#ORIGINAL_ARGS[@]}; i++)); do
+    arg="${ORIGINAL_ARGS[$i]}"
     case "$arg" in
-      --webhook=*) SLACK_WEBHOOK_URL="${arg#*=}" ;;
+      --webhook=*)
+        SLACK_WEBHOOK_URL="${arg#*=}"
+        ;;
+      --webhook)
+        if (( i + 1 < ${#ORIGINAL_ARGS[@]} )); then
+          SLACK_WEBHOOK_URL="${ORIGINAL_ARGS[$((i+1))]}"
+        fi
+        ;;
     esac
+    [[ -n "$SLACK_WEBHOOK_URL" ]] && break
   done
 fi
 
