@@ -45,6 +45,11 @@ USAGE
   esac
 done
 
+# If a webhook was provided via flag/env, skip interactive prompt
+if [[ -n "$SLACK_WEBHOOK_URL" ]]; then
+  SKIP_CONFIG_PROMPT=true
+fi
+
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"; }
 error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
@@ -110,14 +115,17 @@ JSON
   chmod 0600 "$INSTALL_DIR/config.json"
   success "Configuration: $INSTALL_DIR/config.json"
 
-  if [[ "$SKIP_CONFIG_PROMPT" = false && -z "$SLACK_WEBHOOK_URL" ]]; then
-    echo -e "${YELLOW}No webhook provided. Enter one now (or leave blank to skip):${NC}"
-    read -r input
-    if [[ -n "$input" && "$input" == https://hooks.slack.com/services/* ]]; then
-      sed -i "s|\"slack_webhook\": \".*\"|\"slack_webhook\": \"$input\"|" "$INSTALL_DIR/config.json"
-      success "Webhook saved"
-    else
-      warning "Webhook unchanged"
+  # Only prompt if not skipping and the config still has the placeholder URL
+  if [[ "$SKIP_CONFIG_PROMPT" = false ]]; then
+    if grep -q '"slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"' "$INSTALL_DIR/config.json"; then
+      echo -e "${YELLOW}No webhook provided. Enter one now (or leave blank to skip):${NC}"
+      read -r input
+      if [[ -n "$input" && "$input" == https://hooks.slack.com/services/* ]]; then
+        sed -i "s|\"slack_webhook\": \".*\"|\"slack_webhook\": \"$input\"|" "$INSTALL_DIR/config.json"
+        success "Webhook saved"
+      else
+        warning "Webhook unchanged"
+      fi
     fi
   fi
 }
