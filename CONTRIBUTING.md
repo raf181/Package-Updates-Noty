@@ -2,11 +2,15 @@
 
 Thanks for your interest in contributing!
 
-## Development setup
+## Development setup (Go)
 
-- Python 3.11+
-- Install dev dependency: `pip install -r requirements.txt`
-- Build the binary: `python build_binary.py`
+- Go 1.22+
+- Build locally:
+	- `go build -o update-noti ./cmd/update-noti`
+	- or `make build` (if you prefer Makefile targets)
+- Run locally:
+	- `./update-noti --version`
+	- `./update-noti --install-complete --config=./config.example.json`
 
 ## Pull requests
 

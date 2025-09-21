@@ -1,3 +1,11 @@
+#!/usr/bin/env python3
+# Deprecated: This project has migrated to Go. Use the Go binary at /opt/update-noti/update-noti.
+# This file is retained for legacy references and will be removed in a future cleanup.
+
+if __name__ == "__main__":
+    import sys
+    sys.stderr.write("update_noti.py is deprecated. Use the Go binary.\n")
+    sys.exit(1)
 import os
 import subprocess
 import json

@@ -1,0 +1,8 @@
+{
+  "auto_update": ["tailscale", "netdata"],
+  "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+  "telemetry": {
+    "log_level": "INFO",
+    "log_file": ""
+  }
+}

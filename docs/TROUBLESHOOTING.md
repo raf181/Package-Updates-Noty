@@ -14,6 +14,8 @@ sudo journalctl -u update-noti.service -n 200 --no-pager
 
 ```bash
 sudo /opt/update-noti/update.sh
+# or directly
+sudo /opt/update-noti/update-noti
 ```
 
 ## Slack messages not appearing

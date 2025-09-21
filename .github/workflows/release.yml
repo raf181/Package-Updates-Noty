@@ -1,0 +1,40 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'nightly'
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build linux/amd64
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o update-noti_linux_amd64 ./cmd/update-noti
+      - name: Build linux/arm64
+        run: |
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.ref_name }}" -o update-noti_linux_arm64 ./cmd/update-noti
+      - name: Generate checksums
+        run: |
+          sha256sum update-noti_linux_* > checksums.txt
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            update-noti_linux_amd64
+            update-noti_linux_arm64
+            checksums.txt
+          prerelease: ${{ startsWith(github.ref_name, 'nightly') }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

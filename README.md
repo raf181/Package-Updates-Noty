@@ -1,11 +1,10 @@
 # Package Updates Notifier (update-noti)
 
-Keep your Linux servers informed and tidy. This tool checks for OS package updates across popular Linux distributions, optionally auto-updates selected packages, and posts a beautifully formatted summary to Slack.
+Go implementation. This tool checks for OS package updates across popular Linux distributions, optionally auto-updates selected packages, and posts a formatted summary to Slack.
 
-- Single-file binary (no Python required) with Python fallback
+- Single-file Go binary
 - Supports apt, dnf, yum, pacman, zypper
-- Daily scheduling via systemd timer (with cron fallback)
-- Self-updating wrapper to pull the latest binary from GitHub Releases
+- Daily scheduling via systemd timer
 
 
 ## Quick start
@@ -14,7 +13,7 @@ Install in one line. Pass your Slack webhook to start receiving notifications im
 
 ```bash
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
-curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash -s -- --webhook="$SLACK_WEBHOOK_URL"
 ```
 
 Optionally, predefine an auto-update list (comma-separated):
@@ -22,7 +21,7 @@ Optionally, predefine an auto-update list (comma-separated):
 ```bash
 SLACK_WEBHOOK_URL="https://hooks.slack.com/services/YOUR/WEBHOOK/URL" \
 AUTO_UPDATE_PACKAGES="tailscale,netdata,nginx" \
-curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash
+curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/install.sh | sudo bash -s -- --webhook="$SLACK_WEBHOOK_URL" --packages="$AUTO_UPDATE_PACKAGES"
 ```
 
 What you get:
@@ -60,21 +59,16 @@ See more examples and tips in docs/CONFIG.md
 
 ## Usage
 
-The installer creates an update wrapper at `/opt/update-noti/update.sh` that:
-
-- Attempts to self-update the `update-noti` binary from the latest GitHub release
-- Runs the tool with any arguments you pass through
-
 Run it ad-hoc:
 
 ```bash
-sudo /opt/update-noti/update.sh
+sudo /opt/update-noti/update-noti
 ```
 
-Help/CLI:
+Version:
 
 ```bash
-sudo /opt/update-noti/update.sh --help
+sudo /opt/update-noti/update-noti --version
 ```
 
 Special flag used by the installer to emit a “installed” Slack message:
@@ -86,11 +80,10 @@ sudo /opt/update-noti/update-noti --install-complete
 
 ## Scheduling
 
-The installer configures both a systemd timer and a cron fallback.
+The installer configures a systemd service and timer.
 
 - Systemd service: `/etc/systemd/system/update-noti.service`
 - Systemd timer: `/etc/systemd/system/update-noti.timer` (runs daily at 01:00, persistent across reboots)
-- Cron fallback: appends an entry to `/etc/crontab`
 
 Useful commands:
 
@@ -141,25 +134,14 @@ curl -fsSL https://raw.githubusercontent.com/raf181/Package-Updates-Noty/main/in
 ```
 
 
-## Build from source (optional)
+## Build from source (Go)
 
-Requirements:
-
-- Python 3.11+
-- PyInstaller >= 6.0.0 (installed by `pip install -r requirements.txt`)
-
-Steps:
+Requirements: Go 1.22+
 
 ```bash
-python -m pip install --upgrade pip
-pip install -r requirements.txt
-python build_binary.py
+make build
+./update-noti --version
 ```
-
-Artifacts land in `dist/`:
-
-- `dist/update-noti` (executable)
-- `dist/release-info.json`
 
 
 ## Security notes
@@ -184,7 +166,7 @@ Common checks:
 - Run manually and inspect logs:
 
 ```bash
-sudo /opt/update-noti/update.sh
+sudo /opt/update-noti/update-noti
 sudo journalctl -u update-noti.service -n 200 --no-pager
 ```
 

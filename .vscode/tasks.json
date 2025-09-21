@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"label": "Build Go update-noti",
+			"type": "shell",
+			"command": "go build -o update-noti ./cmd/update-noti",
+			"args": [],
+			"problemMatcher": [
+				"$go"
+			],
+			"group": "build"
+		}
+	]
+}

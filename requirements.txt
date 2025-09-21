@@ -1,1 +1,1 @@
-pyinstaller>=6.0.0
+# Deprecated: Go-only project. No Python requirements needed.

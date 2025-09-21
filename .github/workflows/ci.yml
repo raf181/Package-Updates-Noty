@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build:
+    name: Build binaries
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+      - name: Build linux/amd64
+        run: |
+          GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.sha }}" -o update-noti_linux_amd64 ./cmd/update-noti
+      - name: Build linux/arm64
+        run: |
+          GOOS=linux GOARCH=arm64 CGO_ENABLED=0 go build -ldflags "-s -w -X main.Version=${{ github.sha }}" -o update-noti_linux_arm64 ./cmd/update-noti
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: update-noti-binaries
+          path: |
+            update-noti_linux_amd64
+            update-noti_linux_arm64

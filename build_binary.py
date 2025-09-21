@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+# Deprecated: Go build is the primary method. See Makefile or `go build`.
+print("build_binary.py is deprecated. Use Makefile or go build.")
+#!/usr/bin/env python3
 """
 Binary Builder for Package Updates Notifier
 Builds standalone executables using PyInstaller
