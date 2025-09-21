@@ -1,9 +1,7 @@
 name: Build and Release (Go)
 
 on:
-  push:
-    tags:
-      - 'v*'
+  # Manual releases with version input; tag-based releases are handled by release.yml
   workflow_dispatch:
     inputs:
       version:
@@ -28,6 +26,7 @@ jobs:
       uses: actions/setup-go@v5
       with:
         go-version: '1.22'
+        cache: true
 
     - name: Build linux/amd64
       run: |

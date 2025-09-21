@@ -12,6 +12,10 @@ BIN_NAME="update-noti"
 INSTALL_DIR="/opt/update-noti"
 SERVICE_NAME="update-noti"
 
+# Optional flags for local/non-root installs
+PREFIX=""
+NO_SYSTEMD=0
+
 SLACK_WEBHOOK_URL="${SLACK_WEBHOOK_URL:-}"
 AUTO_UPDATE_PACKAGES="${AUTO_UPDATE_PACKAGES:-}"
 SKIP_CONFIG_PROMPT=false
@@ -26,6 +30,9 @@ while [[ $# -gt 0 ]]; do
     --packages) AUTO_UPDATE_PACKAGES="$2"; shift 2 ;;
     --packages=*) AUTO_UPDATE_PACKAGES="${1#*=}"; shift ;;
     --skip-config) SKIP_CONFIG_PROMPT=true; shift ;;
+  --prefix) PREFIX="$2"; shift 2 ;;
+  --prefix=*) PREFIX="${1#*=}"; shift ;;
+  --no-systemd) NO_SYSTEMD=1; shift ;;
     --help|-h)
       cat <<USAGE
 Package Updates Notifier Installer (Go)
@@ -41,6 +48,10 @@ Options:
 Environment Variables:
   SLACK_WEBHOOK_URL    Slack webhook URL
   AUTO_UPDATE_PACKAGES Comma-separated package list
+  
+Advanced:
+  --prefix=DIR         Install under DIR (non-root allowed; skips systemd/cron)
+  --no-systemd         Skip installing systemd units (useful with --prefix)
 USAGE
       exit 0
       ;;
@@ -66,8 +77,10 @@ if [[ -z "$SLACK_WEBHOOK_URL" && ${#ORIGINAL_ARGS[@]} -gt 0 ]]; then
   done
 fi
 
-# If a webhook was provided via flag/env, skip interactive prompt
-[[ -n "$SLACK_WEBHOOK_URL" ]] && SKIP_CONFIG_PROMPT=true
+# If a webhook was provided via flag/env and is not a placeholder, skip interactive prompt
+if [[ -n "$SLACK_WEBHOOK_URL" && "$SLACK_WEBHOOK_URL" != *"YOUR/WEBHOOK/URL"* ]]; then
+  SKIP_CONFIG_PROMPT=true
+fi
 
 RED='\033[0;31m'; GREEN='\033[0;32m'; YELLOW='\033[1;33m'; BLUE='\033[0;34m'; NC='\033[0m'
 log() { echo -e "${BLUE}[$(date +'%Y-%m-%d %H:%M:%S')]${NC} $1"; }
@@ -75,9 +88,19 @@ error() { echo -e "${RED}[ERROR]${NC} $1" >&2; }
 success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
 warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
 
+if [[ -n "$PREFIX" ]]; then
+  INSTALL_DIR="$PREFIX"
+fi
+
 if [[ ${EUID:-$(id -u)} -ne 0 ]]; then
-  error "Please run as root (use sudo)"
-  exit 1
+  if [[ -n "$PREFIX" ]]; then
+    warning "Non-root install under PREFIX=$PREFIX; skipping systemd and cron."
+    NO_SYSTEMD=1
+    SKIP_CRON=1
+  else
+    error "Please run as root (or use --prefix to install in a user directory)"
+    exit 1
+  fi
 fi
 
 command -v curl >/dev/null 2>&1 || { error "curl is required"; exit 1; }
@@ -100,6 +123,23 @@ download_binary() {
   if ! curl -fsSL -o "$out" -L "$url"; then
     error "Failed to download release asset"
     return 1
+  fi
+  # Try to verify checksum if checksums.txt is available
+  local csum_url="https://github.com/${REPO}/releases/latest/download/checksums.txt"
+  local csum_file="$TMP_DIR/checksums.txt"
+  if curl -fsSL -o "$csum_file" -L "$csum_url"; then
+    if command -v sha256sum >/dev/null 2>&1; then
+      local expected
+      expected=$(grep "${ASSET}$" "$csum_file" | awk '{print $1}')
+      if [[ -n "$expected" ]]; then
+        local actual
+        actual=$(sha256sum "$out" | awk '{print $1}')
+        if [[ "$expected" != "$actual" ]]; then
+          error "Checksum verification failed for ${ASSET}"
+          return 1
+        fi
+      fi
+    fi
   fi
   chmod 0755 "$out"
   # quick sanity check
@@ -163,20 +203,50 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
 # Attempt to self-update to latest release
+# Allow disabling via env
+if [[ "${UPDATE_NOTI_SKIP_UPDATE:-0}" == "1" ]]; then
+  exec "$SCRIPT_DIR/update-noti" "$@"
+fi
 ASSET="update-noti_linux_amd64"
 ARCH=$(uname -m)
 case "$ARCH" in
   x86_64|amd64) ASSET="update-noti_linux_amd64" ;;
   aarch64|arm64) ASSET="update-noti_linux_arm64" ;;
 esac
-TMP=$(mktemp)
-if curl -fsSL -o "$TMP" -L "https://github.com/raf181/Package-Updates-Noty/releases/latest/download/${ASSET}"; then
-  chmod 0755 "$TMP"
-  if "$TMP" --version >/dev/null 2>&1; then
-    cp "$TMP" "$SCRIPT_DIR/update-noti"
-    echo "✅ Binary updated"
+# Rate-limit self-update to once per 24h
+STATE_DIR="$SCRIPT_DIR/.state"
+STAMP="$STATE_DIR/last_update_check"
+mkdir -p "$STATE_DIR"
+now=$(date +%s)
+last=0
+if [[ -f "$STAMP" ]]; then last=$(cat "$STAMP" 2>/dev/null || echo 0); fi
+if (( now - last > 86400 )); then
+  TMP=$(mktemp)
+  if curl -fsSL -o "$TMP" -L "https://github.com/raf181/Package-Updates-Noty/releases/latest/download/${ASSET}"; then
+    # optional checksum verification
+    CSUM_TMP=$(mktemp)
+    if curl -fsSL -o "$CSUM_TMP" -L "https://github.com/raf181/Package-Updates-Noty/releases/latest/download/checksums.txt" 2>/dev/null; then
+      if command -v sha256sum >/dev/null 2>&1; then
+        exp=$(grep "${ASSET}$" "$CSUM_TMP" | awk '{print $1}')
+        if [[ -n "$exp" ]]; then
+          act=$(sha256sum "$TMP" | awk '{print $1}')
+          if [[ "$exp" != "$act" ]]; then
+            echo "⚠️ Skipping update: checksum mismatch"
+            rm -f "$TMP" "$CSUM_TMP"
+            echo "$now" > "$STAMP"
+            exec "$SCRIPT_DIR/update-noti" "$@"
+          fi
+        fi
+      fi
+    fi
+    chmod 0755 "$TMP"
+    if "$TMP" --version >/dev/null 2>&1; then
+      cp "$TMP" "$SCRIPT_DIR/update-noti"
+      echo "✅ Binary updated"
+    fi
+    rm -f "$TMP" "$CSUM_TMP"
   fi
-  rm -f "$TMP"
+  echo "$now" > "$STAMP"
 fi
 
 exec "$SCRIPT_DIR/update-noti" "$@"
@@ -197,6 +267,7 @@ Type=oneshot
 User=root
 WorkingDirectory=$INSTALL_DIR
 ExecStart=$INSTALL_DIR/update.sh
+Environment=UPDATE_NOTI_SKIP_UPDATE=1
 StandardOutput=journal
 StandardError=journal
 
@@ -243,12 +314,16 @@ main() {
   download_binary
   create_config
   create_wrapper
-  if command -v systemctl >/dev/null 2>&1; then
+  if [[ "$NO_SYSTEMD" -ne 1 ]] && command -v systemctl >/dev/null 2>&1; then
     setup_systemd
   else
-    warning "systemd not available; only cron fallback will be set up"
+    warning "Skipping systemd setup (either --no-systemd or systemd not available)"
   fi
-  setup_cron
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    setup_cron
+  else
+    warning "Skipping cron fallback (non-root)"
+  fi
   send_install_complete
   echo
   success "Installation complete"
