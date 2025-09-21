@@ -1,4 +1,4 @@
-name: Build and Release Binary
+name: Build and Release (Go)
 
 on:
   push:
@@ -23,28 +23,36 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Set up Python
-      uses: actions/setup-python@v5
+    
+    - name: Setup Go
+      uses: actions/setup-go@v5
       with:
-        python-version: '3.11'
-        
-    - name: Install dependencies
+        go-version: '1.22'
+
+    - name: Build linux/amd64
       run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        
-    - name: Build binary
+        GOOS=linux GOARCH=amd64 CGO_ENABLED=0 \
+          go build -ldflags "-s -w -X main.Version=${{ github.event.inputs.version || github.ref_name }}" \
+          -o update-noti_linux_amd64 ./cmd/update-noti
+
+    - name: Build linux/arm64
       run: |
-        python build_binary.py
+        GOOS=linux GOARCH=arm64 CGO_ENABLED=0 \
+          go build -ldflags "-s -w -X main.Version=${{ github.event.inputs.version || github.ref_name }}" \
+          -o update-noti_linux_arm64 ./cmd/update-noti
+
+    - name: Generate checksums
+      run: |
+        sha256sum update-noti_linux_* > checksums.txt
         
     - name: Upload binary as artifact
       uses: actions/upload-artifact@v4
       with:
-        name: update-noti-binary
+        name: update-noti-binaries
         path: |
-          dist/update-noti
-          dist/release-info.json
+          update-noti_linux_amd64
+          update-noti_linux_arm64
+          checksums.txt
         
     - name: Create Release
       if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
@@ -53,26 +61,25 @@ jobs:
         tag_name: ${{ github.event.inputs.version || github.ref_name }}
         name: Package Updates Notifier ${{ github.event.inputs.version || github.ref_name }}
         body: |
-          ## 📦 Package Updates Notifier Release
-          
+          ## 📦 Package Updates Notifier Release (Go)
+
           ### 🚀 Installation
           ```bash
           curl -fsSL https://raw.githubusercontent.com/${{ github.repository }}/main/install.sh | sudo bash
           ```
-          
+
           ### 📋 What's Included
-          - ✅ Standalone binary (`update-noti`) - No Python required!
+          - ✅ Go binaries: `update-noti_linux_amd64`, `update-noti_linux_arm64`
           - ✅ Auto-installer with systemd + cron scheduling
           - ✅ Self-updating capability
           - ✅ Multi-package manager support (apt, dnf, yum, pacman, zypper)
-          - ✅ Slack integration with beautiful formatting
+          - ✅ Slack integration with clean formatting
           - ✅ System information reporting
-          
+
           ### 💻 System Requirements
-          - Linux x64 (Ubuntu, Debian, RHEL, CentOS, Fedora, Arch, openSUSE)
-          - No Python installation required (standalone binary)
+          - Linux amd64/arm64 (Ubuntu, Debian, RHEL, CentOS, Fedora, Arch, openSUSE)
           - Internet connectivity for updates and Slack notifications
-          
+
           ### 🔧 Configuration
           After installation, configure your packages in `/opt/update-noti/config.json`:
           ```json
@@ -81,17 +88,17 @@ jobs:
             "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL"
           }
           ```
-          
+
           ### 📊 Binary Information
-          - Size: ~8-10 MB (standalone, no dependencies)
-          - Built with PyInstaller on Ubuntu Latest
-          - Tested on major Linux distributions
-          
+          - Built with Go 1.22 on Ubuntu Latest
+          - Checksums included in `checksums.txt`
+
           ---
           **Full documentation:** https://github.com/${{ github.repository }}#readme
         files: |
-          dist/update-noti
-          dist/release-info.json
+          update-noti_linux_amd64
+          update-noti_linux_arm64
+          checksums.txt
         draft: false
         prerelease: false
         token: ${{ secrets.GITHUB_TOKEN }}
