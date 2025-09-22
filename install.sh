@@ -332,10 +332,36 @@ send_install_complete() {
   "$INSTALL_DIR/$BIN_NAME" --install-complete --config="$INSTALL_DIR/config.json" || true
 }
 
+append_combined_config() {
+  # Append this app's config into a combined JSON Lines file
+  local target_dir
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    target_dir="/opt/noty"
+  else
+    target_dir="$INSTALL_DIR"
+    warning "Non-root install: writing combined config to $target_dir/combined.jsonl"
+  fi
+  mkdir -p "$target_dir"
+  local outfile="$target_dir/combined.jsonl"
+  local ts
+  ts=$(date -Iseconds)
+  {
+    echo -n "{\"app\":\"update-noti\",\"installed_at\":\"$ts\",\"config\":"
+    cat "$INSTALL_DIR/config.json"
+    echo "}"
+  } >> "$outfile"
+  if [[ ${EUID:-$(id -u)} -eq 0 ]]; then
+    chown root:root "$outfile" 2>/dev/null || true
+    chmod 0600 "$outfile" 2>/dev/null || true
+  fi
+  success "Appended config to $outfile"
+}
+
 main() {
   download_binary
   create_config
   create_wrapper
+  append_combined_config
   if [[ "$NO_SYSTEMD" -ne 1 ]] && command -v systemctl >/dev/null 2>&1; then
     setup_systemd
   else

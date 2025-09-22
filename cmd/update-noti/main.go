@@ -16,9 +16,9 @@ import (
 )
 
 var (
-	flagConfig         = flag.String("config", "/opt/update-noti/config.json", "Path to config.json")
+	flagConfig          = flag.String("config", "/opt/update-noti/config.json", "Path to config.json")
 	flagInstallComplete = flag.Bool("install-complete", false, "Send installation completion notification and exit")
-	flagVersion        = flag.Bool("version", false, "Print version and exit")
+	flagVersion         = flag.Bool("version", false, "Print version and exit")
 )
 
 func main() {
@@ -58,15 +58,24 @@ func main() {
 
 	if len(upgradable) == 0 {
 		msg := header("SYSTEM UPDATE CHECK") + fields(sys, string(mgr)) + sep() + "✅ STATUS: All packages are up to date! 🎉" + footer()
-		_ = slack.Send(ctx, notify.SimpleText(msg))
+		route := routeFor(cfg, "updates.all_up_to_date")
+		if err := slack.SendTo(ctx, route, notify.SimpleText(msg)); err != nil {
+			log.Warn("failed to send slack message", "error", err)
+		}
 		return
 	}
 
 	// Decide auto-update subset
 	autoSet := map[string]struct{}{}
-	for _, p := range cfg.AutoUpdate { autoSet[p] = struct{}{} }
+	for _, p := range cfg.AutoUpdate {
+		autoSet[p] = struct{}{}
+	}
 	var toUpdate []string
-	for _, p := range upgradable { if _, ok := autoSet[p]; ok { toUpdate = append(toUpdate, p) } }
+	for _, p := range upgradable {
+		if _, ok := autoSet[p]; ok {
+			toUpdate = append(toUpdate, p)
+		}
+	}
 	updated := pm.AutoUpdate(mgr, toUpdate)
 
 	msg := header("SYSTEM UPDATE CHECK") + fields(sys, string(mgr)) + sep()
@@ -88,7 +97,8 @@ func main() {
 	}
 	msg += footer()
 
-	if err := slack.Send(ctx, notify.SimpleText(msg)); err != nil {
+	route := routeFor(cfg, "updates.summary")
+	if err := slack.SendTo(ctx, route, notify.SimpleText(msg)); err != nil {
 		log.Warn("failed to send slack message", "error", err)
 	}
 }
@@ -110,7 +120,8 @@ func doInstallComplete(cfg *config.Config) {
 	slack := notify.NewSlack(cfg)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	_ = slack.Send(ctx, notify.SimpleText(msg))
+	route := routeFor(cfg, "updates.install_complete")
+	_ = slack.SendTo(ctx, route, notify.SimpleText(msg))
 }
 
 func header(title string) string {
@@ -147,3 +158,13 @@ func fields(sys system.Info, mgr string) string {
 func versionString() string { return fmt.Sprintf("update-noti %s", Version) }
 
 var Version = "dev"
+
+// routeFor returns a webhook URL for a given logical route, or empty string if none
+func routeFor(cfg *config.Config, key string) string {
+	if cfg.Global != nil {
+		if w, ok := cfg.Global.Slack.Routes[key]; ok {
+			return w
+		}
+	}
+	return ""
+}

@@ -22,8 +22,15 @@ type SlackMessage struct {
 }
 
 func NewSlack(cfg *config.Config) *Slack {
+	// Choose webhook precedence: specific -> global default -> legacy field
+	wh := cfg.SlackWebhook
+	if wh == "" && cfg.Global != nil {
+		if cfg.Global.Slack.DefaultWebhook != "" {
+			wh = cfg.Global.Slack.DefaultWebhook
+		}
+	}
 	return &Slack{
-		webhook: cfg.SlackWebhook,
+		webhook: wh,
 		client:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -48,3 +55,22 @@ func (s *Slack) Send(ctx context.Context, msg *SlackMessage) error {
 }
 
 func SimpleText(text string) *SlackMessage { return &SlackMessage{Text: text} }
+
+// SendTo allows overriding the destination webhook for a single message
+func (s *Slack) SendTo(ctx context.Context, webhook string, msg *SlackMessage) error {
+	if webhook == "" {
+		return s.Send(ctx, msg)
+	}
+	b, _ := json.Marshal(msg)
+	req, _ := http.NewRequestWithContext(ctx, http.MethodPost, webhook, bytes.NewReader(b))
+	req.Header.Set("Content-Type", "application/json")
+	resp, err := s.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("slack webhook status %d", resp.StatusCode)
+	}
+	return nil
+}

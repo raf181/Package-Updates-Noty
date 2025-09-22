@@ -1,6 +1,16 @@
 {
   "auto_update": ["tailscale", "netdata"],
-  "slack_webhook": "https://hooks.slack.com/services/YOUR/WEBHOOK/URL",
+  "slack_webhook": "", 
+  "global": {
+    "slack": {
+      "default_webhook": "https://hooks.slack.com/services/YOUR/DEFAULT/WEBHOOK",
+      "routes": {
+        "updates.summary": "https://hooks.slack.com/services/YOUR/UPDATES/SUMMARY",
+        "updates.all_up_to_date": "https://hooks.slack.com/services/YOUR/UPDATES/OK",
+        "updates.install_complete": "https://hooks.slack.com/services/YOUR/UPDATES/INSTALL"
+      }
+    }
+  },
   "telemetry": {
     "log_level": "INFO",
     "log_file": ""
